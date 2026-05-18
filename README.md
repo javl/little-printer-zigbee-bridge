@@ -40,9 +40,9 @@ Did you find this tool useful? Feel free to support my open source tools - espec
 
 ## Installation
 
-Below are the instructions on running the code on your own system, for use as a commandline tool, or for using the built-in receipt designer tool.
+Below are the instructions on running the code on your own system for use as a commandline tool.
 
-If all you want to do is get a working bridge you can ignore this section: check out [these instructions on the wiki](https://github.com/javl/little-printer-zigbee-bridge/wiki/Install-on-Raspberry-Pi-for-use-with-Sirius) on flashing the code to a Raspberry Pi instead.
+If all you want to do is get a working bridge you can ignore this section: check out [these instructions on the wiki](https://github.com/javl/little-printer-zigbee-bridge/wiki/Install-on-Raspberry-Pi) on flashing the code to a Raspberry Pi with minumal effort instead.
 
 ---
 
@@ -67,8 +67,8 @@ Connecting a Little Printer to your bridge takes a few steps:
 
 From here there are three options:
 
-1. Use with Sirius
-2. Run a local server with a local design tool or REST API
+1. Use with my new server
+2. Run with the old Sirius server
 3. Print directly from the commandline
 
 ---
@@ -82,7 +82,16 @@ From here there are three options:
 
 ---
 
-## Option 1. Connect to Sirius
+## Option 1. Connect to the new server
+
+Connect the Zigbee bridge to the new server by passing the `--lp-server` flag, and optionally `--lp-server-url`. :
+
+```bash
+python3 -m bridge.main --lp-sever --lp-server-url wss://littleprinter.jaspervanloenen.com/api/v1/connection
+```
+Then visit the server in your browser at [littleprinter.jaspervanloenen.com](https://littleprinter.jaspervanloenen.com)
+
+## Option 2. Connect to Sirius
 
 Connect the Zigbee bridge to Sirius by passing the `--sirius` flag. By default it connects to the [Nord Projects' Sirius instance](https://littleprinter.nordprojects.co/):
 
@@ -90,13 +99,7 @@ Connect the Zigbee bridge to Sirius by passing the `--sirius` flag. By default i
 python3 -m bridge.main --sirius
 ```
 
-If you're running your own Sirius instance, pass its URL via `--sirius-server`:
-
-```bash
-python3 -m bridge.main --sirius --sirius-server https://example.com
-```
-
-## Option 2. Local server and design tool
+## Option 3. Local server and design tool
 
 This project includes a simple tool for creating receipts to print. Add text or image blocks using the buttons on the bottom left, then press the print button on the top right.
 
