@@ -37,7 +37,12 @@ def load(path=CONFIG_PATH):
     """ Load the configuration from a JSON file. If the file does not exist, create it with default values."""
     if os.path.exists(path):
         with open(path) as f:
-            cfg = json.load(f)
+            content = f.read().strip()
+        if not content:
+            cfg = _defaults()
+            save(cfg, path)
+            return cfg
+        cfg = json.loads(content)
         defaults = _defaults()
         for k, v in defaults.items():
             if k not in cfg or cfg[k] == "":
