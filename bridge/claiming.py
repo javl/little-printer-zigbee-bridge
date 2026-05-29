@@ -1,3 +1,4 @@
+import secrets
 import struct
 from typing import Tuple
 from Crypto.Cipher import AES
@@ -92,6 +93,30 @@ def link_key_from_claim_code(claim_code: str) -> Tuple[bytes, int]:
 
     packed_secret = struct.pack("<Q", secret)[:5]
     return _generate_link_key(packed_secret), hardware_xor
+
+
+# Forward alphabet: index 0-31 maps to canonical base32 character (omits I, L, U typo aliases)
+_ENCODE_ALPHABET = "0123456789BCDEFGHJKMNOPQRSTVWXYZ"
+
+
+def generate_claim_code(eui64_le: bytes) -> Tuple[str, bytes]:
+    """Generate a random claim code and link key for a device.
+
+    eui64_le: 8-byte little-endian device EUI64 (real or synthetic)
+    Returns (formatted_claim_code, link_key_bytes)
+    """
+    hardware_xor = hardware_xor_from_eui64(eui64_le)
+    secret = secrets.randbits(40)
+    value_lo = hardware_xor | (secret << 24)
+    crc = _crc16(struct.pack("<Q", value_lo))
+    value = value_lo | (crc << 64)
+
+    chars = [_ENCODE_ALPHABET[(value >> ((15 - i) * 5)) & 0x1F] for i in range(16)]
+    code = "".join(chars)
+    formatted = f"{code[0:4]}-{code[4:8]}-{code[8:12]}-{code[12:16]}"
+
+    link_key = _generate_link_key(struct.pack("<Q", secret)[:5])
+    return formatted, link_key
 
 
 def _generate_link_key(secret_5_bytes: bytes) -> bytes:

@@ -23,6 +23,7 @@ def _defaults():
         "network_key": secrets.token_hex(16),
         "print_id": 1,
         "devices": {},
+        "usb_devices": {},
     }
 
 
@@ -58,6 +59,12 @@ def save(cfg, path=CONFIG_PATH):
     """ Save the configuration to a JSON file."""
     with open(path, "w") as f:
         json.dump(cfg, f, indent=2)
+
+
+def save_usb_device(cfg, usb_key: str, entry: dict, path=CONFIG_PATH):
+    """Add or update a USB device entry in config and save."""
+    cfg.setdefault("usb_devices", {})[usb_key] = entry
+    save(cfg, path)
 
 
 def next_print_id(cfg, path=CONFIG_PATH):

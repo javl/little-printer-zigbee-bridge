@@ -336,13 +336,23 @@ async def run_lp_server(args):
 
     if args.new_network:
         _apply_new_network_params(cfg)
-    bridge = LittlePrinterBridge(cfg)
+
+    usb_printers: dict = {}
+    if not args.no_usb:
+        from .usb_printer import setup_usb_printers
+        usb_printers = setup_usb_printers(cfg)
+
+    bridge = None
+    if not args.no_zigbee:
+        bridge = LittlePrinterBridge(cfg)
+
     try:
-        await bridge.start(force_new_network=args.new_network)
-        await bridge.preinstall_known_keys(cfg["devices"])
+        if bridge is not None:
+            await bridge.start(force_new_network=args.new_network)
+            await bridge.preinstall_known_keys(cfg["devices"])
 
         server_url = args.lp_server_url
-        lp_server = LPClient(bridge, cfg, server_url)
+        lp_server = LPClient(bridge, cfg, server_url, usb_printers=usb_printers)
 
         join_queue: asyncio.Queue = asyncio.Queue()
 
@@ -366,7 +376,14 @@ async def run_lp_server(args):
                 try:
                     await lp_server.connect()
                     delay = 1.0
-                    await asyncio.gather(drain_join_queue(), lp_server.receive_forever())
+                    # Announce USB printers on each (re)connect so the server
+                    # (re)registers them after any connection drop
+                    for device_address in usb_printers:
+                        await lp_server.send_encryption_key_required(device_address)
+                    if bridge is not None:
+                        await asyncio.gather(drain_join_queue(), lp_server.receive_forever())
+                    else:
+                        await lp_server.receive_forever()
                 except asyncio.CancelledError:
                     return
                 except Exception as exc:
@@ -375,12 +392,16 @@ async def run_lp_server(args):
                     delay = min(delay * 2, 60)
 
         log.info("lp_server mode running. Waiting for printer and server commands.")
+        tasks = [server_loop()]
+        if bridge is not None:
+            tasks.append(join_loop())
         try:
-            await asyncio.gather(join_loop(), server_loop())
+            await asyncio.gather(*tasks)
         except asyncio.CancelledError:
             pass
     finally:
-        await bridge.stop()
+        if bridge is not None:
+            await bridge.stop()
 
 
 def _find_paired_printer(cfg: dict) -> str | None:
@@ -412,6 +433,8 @@ def main():
     parser.add_argument("--sirius", action="store_true", help="Connect to Nord server (Sirius) as a Berg bridge client")
     parser.add_argument("--sirius-server-url", metavar="URL", default=DEFAULT_SIRIUS_SERVER_URL,
                         help=f"Nord server WebSocket URL (default: {DEFAULT_SIRIUS_SERVER_URL})")
+    parser.add_argument("--no-usb", action="store_true", help="Disable USB ESC/POS printer discovery and printing")
+    parser.add_argument("--no-zigbee", action="store_true", help="Skip Zigbee init (for USB-only setups without a Zigbee dongle)")
     parser.add_argument("--clear-devices", action="store_true", help="Remove all paired devices from NCP key table and config, then exit")
     parser.add_argument("--new-network", action="store_true", help="Discard stored network and form a new one with fresh EPAN and key")
     parser.add_argument("--debug", action="store_true", help="Enable DEBUG logging")

@@ -29,12 +29,14 @@ def _be_to_eui64(be_addr: str) -> str:
 
 
 class LPClient:
-    def __init__(self, bridge, cfg: dict, server_url: str = DEFAULT_SERVER_URL):
+    def __init__(self, bridge, cfg: dict, server_url: str = DEFAULT_SERVER_URL,
+                 usb_printers: dict | None = None):
         self._bridge = bridge
         self._cfg = cfg
         self._bridge_address = cfg.get("extended_pan_id", "0000000000000000")
         self._server_url = server_url
         self._ws = None
+        self._usb_printers: dict = usb_printers or {}
 
     # --- Public API (called from main.py join_loop) ---
 
@@ -63,7 +65,8 @@ class LPClient:
             subprotocols=[SUBPROTOCOL],
         )
         await self._send_bridge_online()
-        self._bridge.on_printer_event = self._on_printer_event
+        if self._bridge is not None:
+            self._bridge.on_printer_event = self._on_printer_event
         log.info("Connected and bridge_online sent.")
 
     async def receive_forever(self):
@@ -134,9 +137,21 @@ class LPClient:
     async def _handle_add_key(self, data: dict, command_id):
         be_addr = data["device_address"]
         key = base64.b64decode(data["key"])
+
+        if be_addr in self._usb_printers:
+            log.info("← add_key for USB printer %s (not installing in Zigbee)", be_addr)
+            for entry in self._cfg.get("usb_devices", {}).values():
+                if entry.get("device_address") == be_addr:
+                    entry["link_key"] = key.hex()
+                    cfg_module.save(self._cfg)
+                    break
+            await self._send({"type": "key_ack", "command_id": command_id, "success": True})
+            return
+
         eui64_le = bytes.fromhex(_be_to_eui64(be_addr))
         log.info("← add_key for %s", be_addr)
-        await self._bridge.install_link_key(eui64_le, key)
+        if self._bridge is not None:
+            await self._bridge.install_link_key(eui64_le, key)
         eui64_hex = _be_to_eui64(be_addr)
         self._cfg["devices"][eui64_hex] = {"link_key": key.hex()}
         cfg_module.save(self._cfg)
@@ -149,8 +164,23 @@ class LPClient:
 
     async def _handle_print(self, data: dict, command_id):
         be_addr = data["device_address"]
-        eui64_hex = _be_to_eui64(be_addr)
         binary = base64.b64decode(data["payload"])
+
+        if be_addr in self._usb_printers:
+            usb_printer = self._usb_printers[be_addr]
+            log.info("← print (cmd_id=%s) for USB printer %s", command_id, be_addr)
+            try:
+                async with usb_printer._lock:
+                    await usb_printer.print_lp_binary(binary)
+                success = True
+                asyncio.get_event_loop().create_task(self._send_usb_did_print(be_addr))
+            except Exception as exc:
+                log.error("USB print failed: %s", exc)
+                success = False
+            await self._send({"type": "print_ack", "command_id": command_id, "success": success})
+            return
+
+        eui64_hex = _be_to_eui64(be_addr)
         blocks = split_into_blocks(binary)
         log.info("← print (cmd_id=%s) for %s - %d block(s)", command_id, be_addr, len(blocks))
         try:
@@ -164,3 +194,15 @@ class LPClient:
             "command_id": command_id,
             "success": success,
         })
+
+    async def _send_usb_did_print(self, be_addr: str):
+        binary = struct.pack("<HII", _EVENT_DID_PRINT, 0, 5) + struct.pack("<BI", 0x01, 0)
+        try:
+            await self._send({
+                "type": "printer_event",
+                "bridge_address": self._bridge_address,
+                "device_address": be_addr,
+                "payload": base64.b64encode(binary).decode(),
+            })
+        except Exception as exc:
+            log.warning("Failed to send USB did_print event: %s", exc)

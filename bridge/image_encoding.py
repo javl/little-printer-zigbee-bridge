@@ -99,6 +99,48 @@ def text_to_image(text: str, font_size: int = 24) -> Image.Image:
     return im
 
 
+_RLE_DECODE_TRANSLATE = {252: 384, 253: 768, 254: 1152, 255: 1536}
+_RLE_TYPE_OFFSET = 47   # byte 0x01 in build_command output
+_RLE_LEN_OFFSET = 48    # 4-byte LE RLE data length
+_RLE_DATA_OFFSET = 52   # raw RLE bytes start here
+
+
+def _decode_rle(rle_bytes: bytes) -> list:
+    pixels = []
+    color = 255  # RLE always starts with a white run
+    for b in rle_bytes:
+        if b == 0:
+            color = 0 if color == 255 else 255
+        else:
+            pixels.extend([color] * _RLE_DECODE_TRANSLATE.get(b, b))
+            color = 0 if color == 255 else 255
+    return pixels
+
+
+def lp_binary_to_pil(binary: bytes) -> Image.Image:
+    """Decode an LP thermal binary payload (as received from the LP server) into a PIL image.
+
+    binary is the full build_command(...) output, i.e. the base64-decoded print payload.
+    Raises ValueError on malformed input.
+    """
+    if len(binary) < _RLE_DATA_OFFSET:
+        raise ValueError(f"LP binary too short: {len(binary)} bytes")
+    if binary[_RLE_TYPE_OFFSET] != 0x01:
+        raise ValueError(f"Unexpected RLE type byte: 0x{binary[_RLE_TYPE_OFFSET]:02x}")
+
+    rle_len = struct.unpack_from("<I", binary, _RLE_LEN_OFFSET)[0]
+    pixels = _decode_rle(binary[_RLE_DATA_OFFSET: _RLE_DATA_OFFSET + rle_len])
+
+    height = len(pixels) // PRINT_WIDTH
+    if height == 0:
+        raise ValueError("Decoded image has zero height")
+    pixels = pixels[:height * PRINT_WIDTH]
+
+    im = Image.new("L", (PRINT_WIDTH, height))
+    im.putdata(pixels)
+    return im.transpose(Image.Transpose.ROTATE_180)
+
+
 def create_blank_image(height: int = 64) -> Image.Image:
     """Return an all-white image at print width, used for unused personality slots."""
     return Image.new("L", (PRINT_WIDTH, height), 255)
