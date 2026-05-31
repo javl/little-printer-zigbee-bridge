@@ -31,6 +31,7 @@ Did you find this tool useful? Feel free to support my open source tools - espec
   - [Option 3. Print from commandline](#option-3-print-from-commandline)
     - [Arguments](#arguments)
     - [CLI Examples](#cli-examples)
+  - [Fake printer (local testing)](#fake-printer-local-testing)
   - [Faces / personality](#faces--personality)
   - [config.json](#configjson)
   - [Thanks](#thanks)
@@ -163,6 +164,42 @@ python3 -m bridge.main --text "test" --once
 
 ---
 
+## Fake printer (local testing)
+
+`fake_printer.py` emulates a Little Printer over WebSocket — no Zigbee dongle or physical hardware needed. Useful for testing.
+
+```bash
+python3 fake_printer.py
+```
+
+On first run it prints a claim code to the terminal. Enter it on the server to pair the device. Once paired, any print job sent to it is decoded and saved as `receipt.png` in the current directory (overwritten each time).
+
+### Arguments
+
+| Argument | Default | Description |
+|---|---|---|
+| `--device-id HEX16` | `deadbeef00000001` | EUI64 as 16-char little-endian hex. Change to run multiple fake printers simultaneously |
+| `--server-url URL` | LP server default | WebSocket URL of the LP server |
+| `--config PATH` | `bridge/config.json` | Config file to read/write pairing state |
+
+### Examples
+
+```bash
+# Start a fake printer (claim code printed on first run):
+python3 fake_printer.py
+
+# Run two fake printers at the same time:
+python3 fake_printer.py --device-id deadbeef00000001
+python3 fake_printer.py --device-id deadbeef00000002
+
+# Point at a local server:
+python3 fake_printer.py --server-url ws://localhost:8080/api/v1/connection
+```
+
+Pairing state is stored in `bridge/config.json` under the `ws_devices` key. Delete that entry to force a new claim code on the next run.
+
+---
+
 ## Faces / personality
 
 Originally the Little Printer had a "personality": its face would change over time (hair would grow, it would get glasses, etc.). You can update the personality (the face printed at the end of each delivery) plus three status images (`nothing to print`, `can't see bridge`, `can't see internet`). These images will be used until you send new ones, or simply power off the printer.
@@ -190,7 +227,9 @@ Generated automatically on first run:
 | `extended_pan_id` | 8-byte hex. First 4 bytes are always `42455247` ("BERG") - the printer scans for this prefix |
 | `network_key` | 16-byte hex AES network key, randomly generated |
 | `print_id` | Auto-incrementing counter used to match print confirmations |
-| `devices` | Dict of EUI64 → `{claim_code, link_key}` for each paired printer |
+| `devices` | Dict of EUI64 → `{claim_code, link_key}` for each paired Zigbee printer |
+| `usb_devices` | Dict of `vendor:product` → device info for each paired USB printer |
+| `ws_devices` | Dict of BE device address → `{claim_code, link_key}` for each paired fake (WebSocket) printer |
 
 > **Note:** Do not change `extended_pan_id` or `network_key` after a printer has been paired. The printer will need to be re-paired.
 
