@@ -428,7 +428,6 @@ def main():
     parser.add_argument("--http-port", type=int, default=8080, metavar="PORT",
                         help="HTTP port (default: 8080)")
     parser.add_argument("--to-image", action="store_true", help="Write the result to print.jpg instead of sending to printer, useful for debugging without a Zigbee module or printer")
-    parser.add_argument("--lp-server", action="store_true", help="Connect to (new) server as client")
     parser.add_argument("--lp-server-url", metavar="URL", default=DEFAULT_SERVER_URL, help="URL of the LP server to connect to")
     parser.add_argument("--sirius", action="store_true", help="Connect to Nord server (Sirius) as a Berg bridge client")
     parser.add_argument("--sirius-server-url", metavar="URL", default=DEFAULT_SIRIUS_SERVER_URL,
@@ -458,11 +457,10 @@ def main():
             asyncio.run(serve_mode(args))
         elif args.sirius:  # legacy sirius mode
             asyncio.run(run_sirius(args))
-        elif args.lp_server:
+        else: # run in default lp-server mode
             asyncio.run(run_lp_server(args))
-
-        else:
-            asyncio.run(run(args))
+        # else:
+        #     asyncio.run(run(args))
     except KeyboardInterrupt:
         print("\nStopped.")
 
