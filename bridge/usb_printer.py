@@ -228,10 +228,10 @@ class USBPrinter:
         self.info = info
         self._lock = asyncio.Lock()
 
-    async def print_lp_binary(self, binary: bytes):
+    async def print_lp_binary(self, binary: bytes, rotate_180: bool = False):
         """Decode an LP thermal binary payload and print it via ESC/POS."""
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self._print_sync, binary)
+        await loop.run_in_executor(None, self._print_sync, binary, rotate_180)
 
     def _scale(self, im, paper_width: int):
         from PIL import Image
@@ -240,7 +240,7 @@ class USBPrinter:
         new_height = round(im.height * paper_width / im.width)
         return im.resize((paper_width, new_height), Image.Resampling.LANCZOS)
 
-    def _print_sync(self, binary: bytes):
+    def _print_sync(self, binary: bytes, rotate_180: bool = False):
         from escpos.printer import Usb as EscposUsb
         from .image_encoding import lp_binary_to_pil, load_image
         from .protocol import CMD_SET_DELIVERY_AND_PRINT
@@ -252,6 +252,8 @@ class USBPrinter:
 
         paper_width = self.info.paper_width_pixels
         im = self._scale(lp_binary_to_pil(binary), paper_width)
+        if rotate_180:
+            im = im.rotate(180)
         p = EscposUsb(self.info.vendor_id, self.info.product_id)
         p.profile.profile_data['media']['width']['pixels'] = paper_width
         try:
@@ -261,6 +263,8 @@ class USBPrinter:
             if show_face:
                 if os.path.exists(_FACE_IMAGE_PATH):
                     face_im = self._scale(load_image(_FACE_IMAGE_PATH), paper_width)
+                    if rotate_180:
+                        face_im = face_im.rotate(180)
                     p.image(face_im, impl="bitImageColumn", center=False)
                     p.ln(8)
                 else:

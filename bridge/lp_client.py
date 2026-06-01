@@ -165,13 +165,14 @@ class LPClient:
     async def _handle_print(self, data: dict, command_id):
         be_addr = data["device_address"]
         binary = base64.b64decode(data["payload"])
+        rotate_180 = data.get("rotate_180", False)
 
         if be_addr in self._usb_printers:
             usb_printer = self._usb_printers[be_addr]
             log.info("← print (cmd_id=%s) for USB printer %s", command_id, be_addr)
             try:
                 async with usb_printer._lock:
-                    await usb_printer.print_lp_binary(binary)
+                    await usb_printer.print_lp_binary(binary, rotate_180=rotate_180)
                 success = True
                 asyncio.get_event_loop().create_task(self._send_usb_did_print(be_addr))
             except Exception as exc:
