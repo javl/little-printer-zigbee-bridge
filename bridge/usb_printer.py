@@ -199,15 +199,15 @@ def print_claim_slip(vendor_id: int, product_id: int, claim_code: str):
         p = EscposUsb(vendor_id, product_id)
 
         p.set(align="center", bold=False, custom_size=True, width=1, height=1)
-        p.text("New USB Printer found!\n\n")
-        p.text("To link your printer visit\n")
-        p.set(align="center", bold=True, custom_size=True, width=2, height=2)
-        p.text("https://littleprinter.jaspervanloenen.com\n")
+        p.text("Unclaimed USB Printer found!\n\n")
+        p.text("To link your printer visit\n\n")
+        p.set(align="center", bold=True, custom_size=True, width=1, height=1)
+        p.text("https://littleprinter.jaspervanloenen.com")
 
         p.set(align="center", bold=False, custom_size=True, width=1, height=1)
         p.text("\n\nand enter the following claim code:\n\n")
 
-        p.set(align="center", bold=True, custom_size=True, width=4, height=4)
+        p.set(align="center", bold=True, custom_size=True, width=2, height=2)
         p.text(f"{claim_code}\n\n\n")
 
         p.cut()
