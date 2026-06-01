@@ -100,7 +100,11 @@ class LittlePrinterBridge:
 
         self._loop = asyncio.get_running_loop()
         self._ezsp = EZSP({"path": cfg["ezsp_port"], "baudrate": cfg["ezsp_baud"], "flow_control": None})
-        await self._ezsp.connect()
+        try:
+            await self._ezsp.connect()
+        except Exception as exc:
+            # log.error("Failed to connect to EZSP: %s", exc)
+            raise RuntimeError(f"error on connecting EZSP: {exc}") from exc
         self._ezsp.add_callback(self._on_frame)
 
         await self._configure_stack()

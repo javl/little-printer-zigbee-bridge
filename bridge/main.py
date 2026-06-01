@@ -15,12 +15,9 @@ import asyncio
 import logging
 import sys
 
-from PIL import Image
-
 from . import config as cfg_module
 from .claiming import link_key_from_claim_code, hardware_xor_from_eui64, InvalidClaimCode
 from .protocol import prepare_print_job, prepare_personality_job
-from .server import make_app, run_server
 from .sirius_client import SiriusClient, DEFAULT_SIRIUS_SERVER_URL
 from .lp_client import LPClient, DEFAULT_SERVER_URL
 from .zigbee import LittlePrinterBridge
@@ -129,7 +126,12 @@ async def run(args):
         _apply_new_network_params(cfg)
     bridge = LittlePrinterBridge(cfg)
     try:
-        await bridge.start(force_new_network=args.new_network)
+        try:
+            await bridge.start(force_new_network=args.new_network)
+        except Exception as exc:
+            log.error("Failed to start bridge: %s", exc)
+            log.info("Add --no-zigbee if you want to run the bridge in USB-only mode without a Zigbee dongle.")
+            return
         await bridge.preinstall_known_keys(cfg["devices"])
 
         # Bridge is now running. Rest of this method contains various modes of
@@ -249,7 +251,12 @@ async def clear_devices_mode(args):
         _apply_new_network_params(cfg)
     bridge = LittlePrinterBridge(cfg)
     try:
-        await bridge.start(force_new_network=args.new_network)
+        try:
+            await bridge.start(force_new_network=args.new_network)
+        except Exception as exc:
+            log.error("Failed to start bridge: %s", exc)
+            log.info("Add --no-zigbee if you want to run the bridge in USB-only mode without a Zigbee dongle.")
+            return
         ok = await bridge.clear_link_keys()
         if ok:
             cfg["devices"] = {}
@@ -260,34 +267,6 @@ async def clear_devices_mode(args):
     finally:
         await bridge.stop()
 
-
-async def serve_mode(args):
-    """ Run in HTTP server mode, allowing prints to be sent via HTTP and monitoring printer joins. """
-    cfg = cfg_module.load()
-    if args.port:
-        cfg["ezsp_port"] = args.port
-    if args.baud:
-        cfg["ezsp_baud"] = args.baud
-
-    if args.new_network:
-        _apply_new_network_params(cfg)
-    bridge = LittlePrinterBridge(cfg)
-    try:
-        await bridge.start(force_new_network=args.new_network)
-        await bridge.preinstall_known_keys(cfg["devices"])
-
-        async def join_loop():
-            while True:
-                event = await bridge.wait_for_join()
-                await handle_join(bridge, event, cfg)
-
-        print_lock = asyncio.Lock()
-        app = make_app(bridge, cfg, print_lock)
-
-        log.info("Serving. Send prints to http://%s:%d/print", args.host, args.http_port)
-        await asyncio.gather(join_loop(), run_server(app, args.host, args.http_port))
-    finally:
-        await bridge.stop()
 
 async def run_sirius(args):
     """ Run in Sirius mode, connecting to a Nord server as a Berg bridge client.
@@ -302,7 +281,12 @@ async def run_sirius(args):
         _apply_new_network_params(cfg)
     bridge = LittlePrinterBridge(cfg)
     try:
-        await bridge.start(force_new_network=args.new_network)
+        try:
+            await bridge.start(force_new_network=args.new_network)
+        except Exception as exc:
+            log.error("Failed to start bridge: %s", exc)
+            log.info("Add --no-zigbee if you want to run the bridge in USB-only mode without a Zigbee dongle.")
+            return
         await bridge.preinstall_known_keys(cfg["devices"])
 
         server_url = args.sirius_server_url
@@ -347,8 +331,13 @@ async def run_lp_server(args):
         bridge = LittlePrinterBridge(cfg)
 
     try:
-        if bridge is not None:
-            await bridge.start(force_new_network=args.new_network)
+        if bridge:
+            try:
+                await bridge.start(force_new_network=args.new_network)
+            except Exception as exc:
+                log.error("Failed to start bridge: %s", exc)
+                log.info("Add --no-zigbee if you want to run the bridge in USB-only mode without a Zigbee dongle.")
+                return
             await bridge.preinstall_known_keys(cfg["devices"])
 
         server_url = args.lp_server_url
@@ -357,9 +346,10 @@ async def run_lp_server(args):
         join_queue: asyncio.Queue = asyncio.Queue()
 
         async def join_loop():
-            while True:
-                event = await bridge.wait_for_join()
-                await join_queue.put(event)
+            if bridge:
+                while True:
+                    event = await bridge.wait_for_join()
+                    await join_queue.put(event)
 
         async def drain_join_queue():
             while True:
@@ -380,7 +370,7 @@ async def run_lp_server(args):
                     # (re)registers them after any connection drop
                     for device_address in usb_printers:
                         await lp_server.send_encryption_key_required(device_address)
-                    if bridge is not None:
+                    if bridge:
                         await asyncio.gather(drain_join_queue(), lp_server.receive_forever())
                     else:
                         await lp_server.receive_forever()
@@ -393,14 +383,14 @@ async def run_lp_server(args):
 
         log.info("lp_server mode running. Waiting for printer and server commands.")
         tasks = [server_loop()]
-        if bridge is not None:
+        if bridge:
             tasks.append(join_loop())
         try:
             await asyncio.gather(*tasks)
         except asyncio.CancelledError:
             pass
     finally:
-        if bridge is not None:
+        if bridge:
             await bridge.stop()
 
 
@@ -451,10 +441,8 @@ def main():
         return
 
     try:
-        if args.clear_devices:
+        if args.clear_devices:  # remove all paired devices from NCP key table and config, then exit
             asyncio.run(clear_devices_mode(args))
-        elif args.serve:
-            asyncio.run(serve_mode(args))
         elif args.sirius:  # legacy sirius mode
             asyncio.run(run_sirius(args))
         else: # run in default lp-server mode

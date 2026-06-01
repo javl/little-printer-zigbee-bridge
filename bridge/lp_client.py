@@ -65,7 +65,7 @@ class LPClient:
             subprotocols=[SUBPROTOCOL],
         )
         await self._send_bridge_online()
-        if self._bridge is not None:
+        if self._bridge:
             self._bridge.on_printer_event = self._on_printer_event
         log.info("Connected and bridge_online sent.")
 
@@ -150,7 +150,7 @@ class LPClient:
 
         eui64_le = bytes.fromhex(_be_to_eui64(be_addr))
         log.info("← add_key for %s", be_addr)
-        if self._bridge is not None:
+        if self._bridge:
             await self._bridge.install_link_key(eui64_le, key)
         eui64_hex = _be_to_eui64(be_addr)
         self._cfg["devices"][eui64_hex] = {"link_key": key.hex()}
