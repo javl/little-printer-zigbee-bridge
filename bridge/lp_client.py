@@ -11,7 +11,7 @@ from .protocol import split_into_blocks
 
 log = logging.getLogger(__name__)
 
-DEFAULT_SERVER_URL = "ws://littleprinter.jaspervanloenen.com/api/v1/connection"
+DEFAULT_SERVER_URL = "wss://littleprinter.jaspervanloenen.com/api/v1/connection"
 SUBPROTOCOL = "little-printer-v1"
 
 _EVENT_HEARTBEAT = 0x0001
