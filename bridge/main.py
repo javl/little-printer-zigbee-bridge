@@ -324,7 +324,7 @@ async def run_lp_server(args):
     usb_printers: dict = {}
     if not args.no_usb:
         from .usb_printer import setup_usb_printers
-        usb_printers = setup_usb_printers(cfg)
+        usb_printers = setup_usb_printers(cfg, setup_udev=args.setup_udev)
 
     bridge = None
     if not args.no_zigbee:
@@ -423,6 +423,7 @@ def main():
     parser.add_argument("--sirius-server-url", metavar="URL", default=DEFAULT_SIRIUS_SERVER_URL,
                         help=f"Nord server WebSocket URL (default: {DEFAULT_SIRIUS_SERVER_URL})")
     parser.add_argument("--no-usb", action="store_true", help="Disable USB ESC/POS printer discovery and printing")
+    parser.add_argument("--setup-udev", action="store_true", help="Automatically write a udev rule for any USB printer that cannot be accessed (Linux only, requires root)")
     parser.add_argument("--no-zigbee", action="store_true", help="Skip Zigbee init (for USB-only setups without a Zigbee dongle)")
     parser.add_argument("--clear-devices", action="store_true", help="Remove all paired devices from NCP key table and config, then exit")
     parser.add_argument("--new-network", action="store_true", help="Discard stored network and form a new one with fresh EPAN and key")

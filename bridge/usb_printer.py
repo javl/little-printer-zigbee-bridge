@@ -5,6 +5,8 @@ import logging
 import os
 import secrets
 import struct
+import subprocess
+import sys
 from dataclasses import dataclass
 
 import usb.core
@@ -90,6 +92,42 @@ def _udev_hint(vendor_id: int, product_id: int):
         "Then unplug and replug the printer.",
         vendor_id, product_id, vendor_id, product_id,
     )
+
+
+def write_udev_rule(vendor_id: int, product_id: int) -> bool:
+    """Write a udev rule granting access to the printer. Returns True on success."""
+    if sys.platform != "linux":
+        log.warning("--setup-udev only supported on Linux")
+        return False
+
+    rule = (
+        f'SUBSYSTEM=="usb", ATTRS{{idVendor}}=="{vendor_id:04x}", '
+        f'ATTRS{{idProduct}}=="{product_id:04x}", MODE="0666"\n'
+    )
+    rule_path = f"/etc/udev/rules.d/99-little-printer-usb-{vendor_id:04x}{product_id:04x}.rules"
+
+    try:
+        with open(rule_path, "w") as f:
+            f.write(rule)
+        log.info("Wrote udev rule: %s", rule_path)
+    except PermissionError:
+        log.error(
+            "Cannot write %s: permission denied. Run as root or with sudo.", rule_path
+        )
+        return False
+    except OSError as e:
+        log.error("Failed to write udev rule %s: %s", rule_path, e)
+        return False
+
+    try:
+        subprocess.run(["udevadm", "control", "--reload-rules"], check=True)
+        subprocess.run(["udevadm", "trigger"], check=True)
+        log.info("udev rules reloaded. Unplug and replug the USB printer.")
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        log.warning("udevadm failed: %s. Reload rules manually or reboot.", e)
+        return False
+
+    return True
 
 
 def check_udev_access(vendor_id: int, product_id: int) -> bool:
@@ -225,7 +263,7 @@ class USBPrinter:
             p.close()
 
 
-def setup_usb_printers(cfg: dict) -> dict[str, USBPrinter]:
+def setup_usb_printers(cfg: dict, setup_udev: bool = False) -> dict[str, USBPrinter]:
     """Discover USB printers, register new ones, return {device_address: USBPrinter}."""
     found = discover_usb_printers()
     result: dict[str, USBPrinter] = {}
@@ -233,6 +271,13 @@ def setup_usb_printers(cfg: dict) -> dict[str, USBPrinter]:
     for vendor_id, product_id in found:
         usb_key = f"{vendor_id:04x}:{product_id:04x}"
         accessible = check_udev_access(vendor_id, product_id)
+
+        if not accessible and setup_udev:
+            log.info("Attempting to write udev rule for %s ...", usb_key)
+            if write_udev_rule(vendor_id, product_id):
+                log.info("udev rule written. Restart the service after replugging the printer.")
+            accessible = False  # still inaccessible until replug
+
         info, is_new = get_or_create_usb_device(cfg, vendor_id, product_id)
 
         if is_new:
@@ -240,8 +285,8 @@ def setup_usb_printers(cfg: dict) -> dict[str, USBPrinter]:
             if accessible:
                 print_claim_slip(vendor_id, product_id, info.claim_code)
             else:
-                print(f"\nNew USB printer claim code: {info.claim_code}")
-                print("(Could not print claim slip - fix udev permissions above first)")
+                log.info("New USB printer claim code: %s", info.claim_code)
+                log.info("(Could not print claim slip - fix udev permissions first)")
         else:
             log.info(
                 "Known USB printer %s (device_address=%s)", usb_key, info.device_address
