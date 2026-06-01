@@ -258,3 +258,33 @@ Generated automatically on first run:
 - `ImportError: libopenjp2.so.7: cannot open shared object file: No such file or directory`
 
         Install the the missing module: `sudo apt-get install libopenjp2-7`
+
+- **USB ESC/POS printer: "insufficient permissions" or claim slip not printing**
+
+    Access to USB devices requires the right permissions. The bridge will log the exact command to fix this, but here is what is needed per platform:
+
+    **Linux / Raspberry Pi:** Create a udev rule for your printer's vendor and product ID (shown in the error log):
+
+    ```bash
+    echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="XXXX", ATTRS{idProduct}=="XXXX", MODE="0666"' \
+      | sudo tee /etc/udev/rules.d/99-usb-printer.rules
+    sudo udevadm control --reload-rules && sudo udevadm trigger
+    ```
+
+    Replace `XXXX:XXXX` with the actual vendor/product ID shown in the log. Unplug and replug the printer afterwards.
+
+    **macOS:** libusb usually works without extra steps, but macOS may claim the device with its built-in printer driver, blocking pyusb. If you get a permissions or "device busy" error, unload the Apple USB printer driver temporarily:
+
+    ```bash
+    sudo kextunload -b com.apple.driver.AppleUSBPrinter
+    ```
+
+    Reload it with `sudo kextload -b com.apple.driver.AppleUSBPrinter` when done.
+
+    **Windows:** pyusb requires the WinUSB driver instead of the default Windows printer driver. Use [Zadig](https://zadig.akeo.ie/) to replace the driver:
+
+    1. Open Zadig, select your printer from the list
+    2. Choose `WinUSB` as the target driver
+    3. Click `Replace Driver`
+
+    Note: this replaces the Windows print driver, so the printer will no longer work with normal Windows print dialogs until you restore the original driver.

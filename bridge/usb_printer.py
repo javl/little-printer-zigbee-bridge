@@ -80,25 +80,27 @@ def discover_usb_printers() -> list[tuple[int, int]]:
 
 
 def _udev_hint(vendor_id: int, product_id: int):
-    print(
-        f"\nUSB printer {vendor_id:04x}:{product_id:04x} is not accessible.\n"
-        f"Create a udev rule to grant access:\n\n"
-        f"  echo 'SUBSYSTEM==\"usb\", ATTRS{{idVendor}}==\"{vendor_id:04x}\", "
-        f'ATTRS{{idProduct}}=="{product_id:04x}", MODE="0666"'
-        f"' | sudo tee /etc/udev/rules.d/99-usb-printer.rules\n"
-        f"  sudo udevadm control --reload-rules && sudo udevadm trigger\n"
+    log.warning(
+        "USB printer %04x:%04x is not accessible (permission denied).\n"
+        "Fix with a udev rule:\n\n"
+        "  echo 'SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"%04x\", "
+        "ATTRS{idProduct}==\"%04x\", MODE=\"0666\"' "
+        "| sudo tee /etc/udev/rules.d/99-usb-printer.rules\n"
+        "  sudo udevadm control --reload-rules && sudo udevadm trigger\n"
+        "Then unplug and replug the printer.",
+        vendor_id, product_id, vendor_id, product_id,
     )
 
 
 def check_udev_access(vendor_id: int, product_id: int) -> bool:
-    """Return True if the printer is accessible. Prints a udev hint if not."""
+    """Return True if the printer is accessible. Logs a udev hint if not."""
     from escpos.printer import Usb as EscposUsb
     try:
         p = EscposUsb(vendor_id, product_id)
         p.close()
         return True
     except usb.core.USBError as e:
-        if e.errno in (13, 1):  # EACCES / EPERM
+        if e.errno in (13, 1) or "permission" in str(e).lower() or "access" in str(e).lower():
             _udev_hint(vendor_id, product_id)
         else:
             log.warning("USB error checking %04x:%04x: %s", vendor_id, product_id, e)
