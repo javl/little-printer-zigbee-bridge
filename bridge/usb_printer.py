@@ -102,7 +102,8 @@ def write_udev_rule(vendor_id: int, product_id: int) -> bool:
 
     rule = (
         f'SUBSYSTEM=="usb", ATTRS{{idVendor}}=="{vendor_id:04x}", '
-        f'ATTRS{{idProduct}}=="{product_id:04x}", MODE="0666"\n'
+        f'ATTRS{{idProduct}}=="{product_id:04x}", MODE="0666", '
+        f'ATTR{{power/control}}="on"\n'
     )
     rule_path = f"/etc/udev/rules.d/99-little-printer-usb-{vendor_id:04x}{product_id:04x}.rules"
 
