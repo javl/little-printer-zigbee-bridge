@@ -211,7 +211,7 @@ def print_claim_slip(vendor_id: int, product_id: int, claim_code: str):
         p.set(align="center", bold=True, custom_size=True, width=2, height=2)
         p.text(f"{claim_code}\n\n\n")
 
-        p.cut()
+        # p.cut()
         p.close()
     except Exception as e:
         log.warning("Could not print claim slip on USB printer: %s", e)
@@ -256,7 +256,7 @@ class USBPrinter:
         p.profile.profile_data['media']['width']['pixels'] = paper_width
         try:
             p.image(im, impl="bitImageColumn", center=False)
-            p.cut()
+            # p.cut()
             print("show face: ", show_face)
             if show_face:
                 if os.path.exists(_FACE_IMAGE_PATH):
