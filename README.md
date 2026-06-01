@@ -9,7 +9,7 @@ You can control the Little Printer from your computer, or simply use a Raspberry
 Tested on Linux and Windows using a Sonoff ZBDongle-E. Feel free to share issues or comments if you've tested it working on other systems.
 
 ## note
-I've also been working on a different bridge alternative (ESP32 based) which uses even cheaper hardware and is truely plug and play. So unless you want to play around with this code yourself you might want to wait for a little bit longer to see if this alternative will suit you better!
+I also have an ESP32-based bridge alternative in development which uses cheaper hardware. I'll announce when it is available ASAP.
 
 ## License
 In the spirit of open source this project is shared under a GNU GPLv3 license. This means you can use it pretty much in any way you like (including commercially) as long as you give proper attribution and share any changes you make. If you do make any changes that might benefit others, please share them here as a pull request as well, to prevent too many fractured versions of this code.
@@ -22,16 +22,20 @@ Did you find this tool useful? Feel free to support my open source tools - espec
 ---
 
 - [Little Printer Zigbee Bridge](#little-printer-zigbee-bridge)
+  - [note](#note)
   - [License](#license)
   - [Support](#support)
   - [Installation](#installation)
   - [Get claim code](#get-claim-code)
-  - [Option 1. Connect to Sirius](#option-1-connect-to-sirius)
-  - [Option 2. Local server and design tool](#option-2-local-server-and-design-tool)
-  - [Option 3. Print from commandline](#option-3-print-from-commandline)
+  - [Option 1. Connect to the new server](#option-1-connect-to-the-new-server)
+  - [Option 2. Connect to Sirius](#option-2-connect-to-sirius)
+  - [Option 3. Local server and design tool](#option-3-local-server-and-design-tool)
+  - [Option 4. Print from commandline](#option-4-print-from-commandline)
     - [Arguments](#arguments)
     - [CLI Examples](#cli-examples)
   - [Fake printer (local testing)](#fake-printer-local-testing)
+    - [Arguments](#arguments-1)
+    - [Examples](#examples)
   - [Faces / personality](#faces--personality)
   - [config.json](#configjson)
   - [Thanks](#thanks)
@@ -85,10 +89,12 @@ From here there are three options:
 
 ## Option 1. Connect to the new server
 
-Connect the Zigbee bridge to the new server by passing the `--lp-server` flag, and optionally `--lp-server-url`. :
+LP server mode is the default. Run without any mode flag, or pass `--lp-server-url` to point at a different server:
 
 ```bash
-python3 -m bridge.main --lp-sever --lp-server-url wss://littleprinter.jaspervanloenen.com/api/v1/connection
+python3 -m bridge.main
+# or with a custom server URL:
+python3 -m bridge.main --lp-server-url wss://littleprinter.jaspervanloenen.com/api/v1/connection
 ```
 Then visit the server in your browser at [littleprinter.jaspervanloenen.com](https://littleprinter.jaspervanloenen.com)
 
@@ -114,7 +120,7 @@ python3 -m bridge.main --serve
 
 The server URL is printed on the commandline (default: [http://127.0.0.1:8080/](http://127.0.0.1:8080/)). Open it in your browser to visit the design tool.
 
-## Option 3. Print from commandline
+## Option 4. Print from commandline
 
 Run the bridge directly from the commandline with various arguments.
 
@@ -125,7 +131,7 @@ Run the bridge directly from the commandline with various arguments.
 | `--image PATH` | - | Image file to print |
 | `--text TEXT` | - | Text to print (mutually exclusive with `--image`) |
 | `--personality` | - | Updates faces with images from `faces` directory |
-| `--face_dir PATH` | - | Directory to get faces from. Defaults to `faces` |
+| `--faces_dir PATH` | - | Directory to get faces from. Defaults to `faces` |
 | `--no-face` | face on | Skip printing the face after the message |
 | `--max-height PX` | - | Cap image height in pixels before encoding |
 | `--no-dither` | dithering on | Disable Floyd-Steinberg dithering |
@@ -136,8 +142,14 @@ Run the bridge directly from the commandline with various arguments.
 | `--host HOST` | `127.0.0.1` | Bind address for the HTTP server |
 | `--http-port PORT` | `8080` | Port for the HTTP server |
 | `--to-image` | - | Render to `print.jpg` instead of sending to printer (skips Zigbee) |
+| `--lp-server-url URL` | production URL | WebSocket URL of the LP server |
 | `--sirius` | - | Connect to a Sirius server as a Berg bridge client |
-| `--sirius-server URL` | Nord Projects instance | WebSocket URL of the Sirius server |
+| `--sirius-server-url URL` | Nord Projects instance | WebSocket URL of the Sirius server |
+| `--no-usb` | - | Disable USB ESC/POS printer discovery and printing |
+| `--no-zigbee` | - | Skip Zigbee init (for USB-only setups without a Zigbee dongle) |
+| `--setup-udev` | - | Write udev rule for any inaccessible USB printer (Linux only, requires root) |
+| `--clear-devices` | - | Remove all paired devices from NCP key table and config, then exit |
+| `--new-network` | - | Discard stored network and form a new one with fresh EPAN and key |
 | `--debug` | - | Enable DEBUG-level logging |
 
 ### CLI Examples
@@ -204,7 +216,7 @@ Pairing state is stored in `bridge/config.json` under the `ws_devices` key. Dele
 
 Originally the Little Printer had a "personality": its face would change over time (hair would grow, it would get glasses, etc.). You can update the personality (the face printed at the end of each delivery) plus three status images (`nothing to print`, `can't see bridge`, `can't see internet`). These images will be used until you send new ones, or simply power off the printer.
 
-Use `--face PATH` to update the personality and status images, where `PATH` is a directory containing four images:
+Use `--personality` together with `--faces_dir PATH` to update the personality and status images, where `PATH` is a directory containing four images:
 
 - personality.png
 - nothing_to_print.png
