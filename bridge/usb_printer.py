@@ -197,14 +197,12 @@ def print_claim_slip(vendor_id: int, product_id: int, claim_code: str):
     from escpos.printer import Usb as EscposUsb
     try:
         p = EscposUsb(vendor_id, product_id)
-        p.set(align="center", bold=True, width=2, height=2)
-        p.text("New USB Printer\n\n")
+        p.set(align="center", bold=False, width=2, height=2)
+        p.text("New USB Printer found!\n\n")
         p.set(align="center", bold=False, width=1, height=1)
-        p.text("Claim code:\n\n")
-        p.set(align="center", bold=True, width=1, height=1)
+        p.text("Visit littleprinter.jaspervanloenen.com and enter this claim code to link your printer:\n\n")
+        p.set(align="center", bold=True, width=3, height=3)
         p.text(f"{claim_code}\n\n\n")
-        p.set(align="left", bold=False)
-        p.text("Enter this code on the LP server\nweb UI to pair this printer.\n\n\n")
         p.cut()
         p.close()
     except Exception as e:
